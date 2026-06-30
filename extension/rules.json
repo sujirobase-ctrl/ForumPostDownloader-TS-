@@ -1,0 +1,200 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://www.imagebam.com/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||imagebam.com",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://turbo.cr/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||turbocdn.st",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  },
+  {
+    "id": 3,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://turbo.cr/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||turbo.cr",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  },
+  {
+    "id": 4,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://filester.me/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||filester.",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  },
+  {
+    "id": 5,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://erome.com/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||erome.com",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  },
+  {
+    "id": 6,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://bunkr.cr/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||bunkr.",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  },
+  {
+    "id": 7,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://bunkr.cr/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||cdn.cr",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  },
+  {
+    "id": 8,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://cyberdrop.me/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||cyberdrop.",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  },
+  {
+    "id": 9,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://pixhost.to/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||pixhost.to",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  },
+  {
+    "id": 10,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://saint2.su/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||saint2.",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  },
+  {
+    "id": 11,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://gofile.io/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||gofile.io",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  }
+]
