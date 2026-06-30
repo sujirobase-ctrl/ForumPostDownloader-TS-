@@ -5578,6 +5578,43 @@ try {
             }
         } catch (e) {}
 
+        // ── Extension v2 API fallback ──────────────────────────────────
+        // Filester migrated CDN to /v2/ paths on new servers (cn1/p1/rs2).
+        // Try the v2 API when the legacy resolver couldn't find a stream URL.
+        try {
+            if (progressCB) progressCB('[Filester] Trying v2 API...');
+            const urlDomain = (() => {
+                try { return new URL(url).hostname.split('.').slice(-2).join('.'); }
+                catch (e) { return 'filester.me'; }
+            })();
+            const v2Base = `https://${urlDomain}`;
+            const v2Res = await http.base(
+                'POST',
+                `${v2Base}/v2/api/public/download`,
+                {},
+                { Accept: 'application/json, text/plain, */*', 'Content-Type': 'application/json;charset=UTF-8' },
+                JSON.stringify({ file_slug: slug }),
+                'text',
+            );
+            const v2Json = (() => { try { return JSON.parse(String((v2Res && v2Res.source) || '')); } catch (e) { return null; } })();
+            if (v2Json && v2Json.success && v2Json.token && v2Json.file) {
+                const cdnBase = v2Json.server || `https://cn1.filester.me`;
+                const v2Url = `${cdnBase}/v2/${v2Json.file}?token=${encodeURIComponent(v2Json.token)}&download=true` +
+                    (v2Json.name ? `&n=${encodeURIComponent(v2Json.name)}` : '');
+                const v2Name = v2Json.name || nameHint || `Filester_${slug}.bin`;
+                try { filesterSlugByUrl.set(String(v2Url), String(slug)); } catch (e) {}
+                try { filesterNameBySlug.set(String(slug), String(v2Name)); } catch (e) {}
+                try { filesterNameByUrl.set(String(v2Url), String(v2Name)); } catch (e) {}
+                try { filesterNameByUrl.set(String(url), String(v2Name)); } catch (e) {}
+                try { filesterRefByUrl.set(String(v2Url), `${v2Base}/d/${slug}`); } catch (e) {}
+                if (v2Json.size) {
+                    try { filesterSizeBySlug.set(String(slug), Number(v2Json.size)); } catch (e) {}
+                    try { filesterSizeByUrl.set(String(v2Url), Number(v2Json.size)); } catch (e) {}
+                }
+                return v2Url;
+            }
+        } catch (e) {}
+
         return null;
     },
 ],
