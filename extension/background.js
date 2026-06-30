@@ -59,7 +59,6 @@ async function handleHttpRequest(msg, sendResponse) {
     if (headers) {
       for (const [k, v] of Object.entries(headers)) {
         if (k.startsWith('__xfpd_')) continue;
-        if (k.toLowerCase() === 'referer') continue;
         fetchOpts.headers[k] = v;
       }
     }
@@ -130,7 +129,6 @@ async function handleDownload(msg, sendResponse) {
       try {
         const fetchOpts = { headers: {} };
         for (const [k, v] of Object.entries(headers)) {
-          if (k.toLowerCase() === 'referer') continue;
           fetchOpts.headers[k] = v;
         }
         const resp = await fetch(url, fetchOpts);

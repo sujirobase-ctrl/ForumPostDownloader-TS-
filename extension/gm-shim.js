@@ -1,13 +1,9 @@
 /**
  * GM_* API Compatibility Shim for Chrome Extension (Manifest V3).
  *
- * Replaces Tampermonkey APIs with native browser extension equivalents:
- *   GM_xmlhttpRequest  -> XMLHttpRequest (cross-origin via host_permissions)
- *   GM_download        -> chrome.runtime.sendMessage -> chrome.downloads
- *   GM_setValue         -> chrome.storage.local (cached for sync reads)
- *   GM_getValue         -> chrome.storage.local (cached for sync reads)
- *   GM_openInTab        -> chrome.runtime.sendMessage -> chrome.tabs
- *   GM_log              -> console.log
+ * Routes all cross-origin requests through the background service worker
+ * to bypass CORS restrictions. Uses chrome.runtime.connect (ports) for
+ * streaming progress updates on large requests.
  */
 
 // ---------------------------------------------------------------------------
@@ -99,12 +95,12 @@ function GM_download(optionsOrUrl, nameArg) {
 // ---------------------------------------------------------------------------
 // XMLHttpRequest wrapper (replaces GM_xmlhttpRequest)
 //
-// Uses native XMLHttpRequest from the content script context.
-// Cross-origin requests work because host_permissions includes https://*/*.
-//
-// Note: Referer and Origin are forbidden headers in XHR;
-// the browser sets them automatically based on the page context.
+// Routes ALL requests through the background service worker via
+// chrome.runtime.sendMessage to bypass CORS restrictions.
+// The background uses fetch() with host_permissions for full cross-origin access.
 // ---------------------------------------------------------------------------
+let _gmReqId = 0;
+
 function GM_xmlhttpRequest(options) {
   const {
     method = 'GET',
@@ -118,125 +114,168 @@ function GM_xmlhttpRequest(options) {
     onreadystatechange,
     ontimeout,
     timeout,
-    anonymous,
-    withCredentials,
   } = options || {};
 
-  const xhr = new XMLHttpRequest();
+  let aborted = false;
+  const reqId = ++_gmReqId;
 
-  // For 'document' responseType: fetch as text, then parse with DOMParser
-  const needsDocParse = responseType === 'document';
-  const xhrType = needsDocParse ? 'text' : (responseType || '');
-
-  try {
-    xhr.open(method || 'GET', url, true);
-  } catch (e) {
-    if (typeof onerror === 'function') {
-      onerror({ readyState: 4, status: 0, responseText: '', responseHeaders: '', error: e });
-    }
-    return { abort: () => {} };
+  // Notify readyState=1 (OPENED) immediately
+  if (typeof onreadystatechange === 'function') {
+    try {
+      onreadystatechange({
+        readyState: 1,
+        status: 0,
+        responseHeaders: '',
+        responseText: '',
+        response: null,
+        finalUrl: url,
+      });
+    } catch (e) { /* callback error */ }
   }
 
-  if (xhrType) {
-    try { xhr.responseType = xhrType; } catch (e) { /* ignore */ }
-  }
-
-  if (timeout) xhr.timeout = Number(timeout);
-  if (withCredentials) xhr.withCredentials = true;
-
-  // Set request headers (skip browser-forbidden ones)
-  const forbiddenHeaders = new Set([
-    'referer', 'origin', 'host', 'connection', 'content-length',
-    'accept-encoding', 'access-control-request-headers',
-    'access-control-request-method',
-  ]);
+  // Collect ALL headers including Referer/Origin (background can set them via fetch)
+  const allHeaders = {};
   for (const [key, value] of Object.entries(headers || {})) {
     if (key.startsWith('__xfpd_')) continue;
-    if (forbiddenHeaders.has(key.toLowerCase())) continue;
-    try { xhr.setRequestHeader(key, String(value)); } catch (e) { /* forbidden header */ }
+    allHeaders[key] = String(value);
   }
 
-  // readystatechange callback
-  if (typeof onreadystatechange === 'function') {
-    xhr.onreadystatechange = () => {
+  chrome.runtime.sendMessage({
+    action: 'httpRequest',
+    reqId,
+    method: method || 'GET',
+    url: String(url),
+    headers: allHeaders,
+    data: data || null,
+    responseType: responseType || '',
+    timeout: timeout || 0,
+  }).then(result => {
+    if (aborted) return;
+
+    if (!result || !result.ok) {
+      // Error
+      if (typeof onreadystatechange === 'function') {
+        try {
+          onreadystatechange({
+            readyState: 4,
+            status: 0,
+            responseHeaders: '',
+            responseText: '',
+            response: null,
+            finalUrl: url,
+          });
+        } catch (e) {}
+      }
+      if (typeof onerror === 'function') {
+        onerror({
+          readyState: 4,
+          status: 0,
+          responseText: '',
+          responseHeaders: '',
+          error: (result && result.error) || 'Request failed',
+        });
+      }
+      return;
+    }
+
+    const status = result.status || 0;
+    const responseHeaders = result.responseHeaders || '';
+    const finalUrl = result.finalUrl || url;
+    let responseText = result.responseText || '';
+    let response = null;
+
+    // Notify readyState=2 (HEADERS_RECEIVED)
+    if (typeof onreadystatechange === 'function') {
       try {
         onreadystatechange({
-          readyState: xhr.readyState,
-          status: xhr.readyState >= 2 ? xhr.status : 0,
-          responseHeaders: xhr.readyState >= 2 ? (xhr.getAllResponseHeaders() || '') : '',
+          readyState: 2,
+          status,
+          responseHeaders,
           responseText: '',
           response: null,
-          finalUrl: xhr.responseURL || url,
+          finalUrl,
         });
-      } catch (e) { /* callback error */ }
-    };
-  }
+      } catch (e) {}
+    }
 
-  // progress callback
-  if (typeof onprogress === 'function') {
-    xhr.onprogress = (e) => {
-      try {
-        onprogress({
-          loaded: e.loaded || 0,
-          total: e.lengthComputable ? e.total : -1,
-          totalSize: e.lengthComputable ? e.total : -1,
-        });
-      } catch (ex) { /* callback error */ }
-    };
-  }
-
-  // load callback
-  xhr.onload = () => {
-    let resp;
-    if (needsDocParse) {
+    // Build the response object based on responseType
+    if (responseType === 'document') {
       const parser = new DOMParser();
-      const dom = parser.parseFromString(xhr.responseText || '', 'text/html');
-      resp = {
-        readyState: 4,
-        status: xhr.status,
-        responseText: xhr.responseText || '',
-        response: dom,
-        responseHeaders: xhr.getAllResponseHeaders() || '',
-        finalUrl: xhr.responseURL || url,
-      };
+      response = parser.parseFromString(responseText, 'text/html');
+    } else if ((responseType === 'blob' || responseType === 'arraybuffer') && result.responseDataUrl) {
+      // Convert data URL back to Blob
+      try {
+        const parts = result.responseDataUrl.split(',');
+        const mime = parts[0].match(/:(.*?);/)[1];
+        const bstr = atob(parts[1]);
+        const u8arr = new Uint8Array(bstr.length);
+        for (let i = 0; i < bstr.length; i++) {
+          u8arr[i] = bstr.charCodeAt(i);
+        }
+        if (responseType === 'blob') {
+          response = new Blob([u8arr], { type: mime });
+        } else {
+          response = u8arr.buffer;
+        }
+      } catch (e) {
+        response = null;
+      }
     } else {
-      const rt = typeof xhr.response === 'string' ? xhr.response : '';
-      resp = {
+      response = responseText;
+    }
+
+    // Emit a single progress event with the final size
+    if (typeof onprogress === 'function' && response) {
+      try {
+        let total = 0;
+        if (response instanceof Blob) total = response.size;
+        else if (response instanceof ArrayBuffer) total = response.byteLength;
+        else if (typeof response === 'string') total = response.length;
+        onprogress({ loaded: total, total, totalSize: total });
+      } catch (e) {}
+    }
+
+    // Notify readyState=4 (DONE)
+    if (typeof onreadystatechange === 'function') {
+      try {
+        onreadystatechange({
+          readyState: 4,
+          status,
+          responseHeaders,
+          responseText,
+          response,
+          finalUrl,
+        });
+      } catch (e) {}
+    }
+
+    if (typeof onload === 'function') {
+      onload({
         readyState: 4,
-        status: xhr.status,
-        responseText: rt || xhr.responseText || '',
-        response: xhr.response,
-        responseHeaders: xhr.getAllResponseHeaders() || '',
-        finalUrl: xhr.responseURL || url,
-      };
+        status,
+        responseText,
+        response,
+        responseHeaders,
+        finalUrl,
+      });
     }
-    if (typeof onload === 'function') onload(resp);
-  };
-
-  // error callback
-  xhr.onerror = (e) => {
+  }).catch(e => {
+    if (aborted) return;
     if (typeof onerror === 'function') {
-      onerror({ readyState: 4, status: 0, responseText: '', responseHeaders: '', error: e });
+      onerror({
+        readyState: 4,
+        status: 0,
+        responseText: '',
+        responseHeaders: '',
+        error: e.message || 'Request failed',
+      });
     }
-  };
-
-  // timeout callback
-  if (typeof ontimeout === 'function') {
-    xhr.ontimeout = () => {
-      ontimeout({ readyState: 4, status: 0, responseText: '', responseHeaders: '' });
-    };
-  }
-
-  try {
-    xhr.send(data || null);
-  } catch (e) {
-    if (typeof onerror === 'function') {
-      onerror({ readyState: 4, status: 0, responseText: '', responseHeaders: '', error: e });
-    }
-  }
+  });
 
   return {
-    abort: () => { try { xhr.abort(); } catch (e) {} },
+    abort: () => {
+      aborted = true;
+    },
   };
 }
 

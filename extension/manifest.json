@@ -35,7 +35,7 @@
         "libs/sha256.min.js",
         "content.js"
       ],
-      "run_at": "document_start"
+      "run_at": "document_end"
     }
   ],
   "declarative_net_request": {
