@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "XenForo Post Downloader",
+  "version": "3.19",
+  "description": "Downloads images and videos from forum posts (XenForo). Browser extension port of the Tampermonkey userscript.",
+  "permissions": [
+    "downloads",
+    "storage",
+    "tabs",
+    "activeTab",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://simpcity.cr/threads/*",
+        "https://simpcity.is/threads/*",
+        "https://simpcity.cz/threads/*",
+        "https://simpcity.hk/threads/*",
+        "https://simpcity.rs/threads/*",
+        "https://simpcity.ax/threads/*"
+      ],
+      "js": [
+        "libs/jszip.min.js",
+        "libs/popper.min.js",
+        "libs/tippy-bundle.umd.min.js",
+        "libs/FileSaver.min.js",
+        "libs/sha256.min.js",
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "referer_rules",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
