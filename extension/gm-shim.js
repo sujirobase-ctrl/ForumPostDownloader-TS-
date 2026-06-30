@@ -114,6 +114,8 @@ function GM_xmlhttpRequest(options) {
     onreadystatechange,
     ontimeout,
     timeout,
+    withCredentials = false,
+    anonymous,
   } = options || {};
 
   let aborted = false;
@@ -149,6 +151,7 @@ function GM_xmlhttpRequest(options) {
     data: data || null,
     responseType: responseType || '',
     timeout: timeout || 0,
+    withCredentials: !!withCredentials,
   }).then(result => {
     if (aborted) return;
 
@@ -197,6 +200,9 @@ function GM_xmlhttpRequest(options) {
         });
       } catch (e) {}
     }
+
+    // If abort() was called during readyState=2 callback, stop processing
+    if (aborted) return;
 
     // Build the response object based on responseType
     if (responseType === 'document') {

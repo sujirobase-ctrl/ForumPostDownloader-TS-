@@ -41,7 +41,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function handleHttpRequest(msg, sendResponse) {
-  const { method, url, headers, data, responseType, timeout } = msg;
+  const { method, url, headers, data, responseType, timeout, withCredentials } = msg;
 
   try {
     const controller = new AbortController();
@@ -54,11 +54,20 @@ async function handleHttpRequest(msg, sendResponse) {
       method: method || 'GET',
       headers: {},
       signal: controller.signal,
+      redirect: 'follow',
     };
+
+    // Include cookies when withCredentials is set
+    if (withCredentials) {
+      fetchOpts.credentials = 'include';
+    }
 
     if (headers) {
       for (const [k, v] of Object.entries(headers)) {
         if (k.startsWith('__xfpd_')) continue;
+        // Skip forbidden headers that fetch() can't set
+        const lk = k.toLowerCase();
+        if (lk === 'origin' || lk === 'host' || lk === 'content-length') continue;
         fetchOpts.headers[k] = v;
       }
     }
